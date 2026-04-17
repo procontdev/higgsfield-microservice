@@ -1,55 +1,35 @@
 # higgsfield-microservice
 
-Microservicio en Python/FastAPI para integrar **Higgsfield** como proveedor de generación de video dentro del proyecto general **Edicion de Fotos y Video con IA**.
-
-## Objetivo
-
-Mantener el mismo contrato consumido por n8n para:
-
-- solicitar generación de video
-- consultar el estado de tareas
-- normalizar estados del proveedor
+Microservicio en Python/FastAPI para integrar Higgsfield como proveedor de generación de video dentro del proyecto general **Edicion de Fotos y Video con IA**.
 
 ## Estado actual
 
 El servicio ya incluye:
 
-- bootstrap en FastAPI
 - `/health`
 - `POST /video/generate-video`
 - `GET /video/tasks/{id}`
-- `HIGGSFIELD_EXECUTION_ENABLED=false` como protección
-- preparación para alternar modelos tentativos por configuración
-- estructura lista para integrar ejecución real con el SDK
+- protección con `HIGGSFIELD_EXECUTION_ENABLED=false`
+- upload real con `upload_file(...)`
+- submit real con `submit(...)`
+- polling con `status(request_id=...)`
+- obtención de resultado con `result(request_id=...)`
+- construcción de argumentos separada por perfil de modelo
 
-## Variables de entorno
+## Modelos candidatos documentados
 
-Copiar `.env.example` a `.env` y completar:
+Higgsfield muestra públicamente en su plataforma varios modelos relevantes para video, incluyendo:
 
-- `PORT`
-- `APP_ENV`
-- `ACTIVE_VIDEO_PROVIDER`
-- `HIGGSFIELD_API_KEY`
-- `HIGGSFIELD_API_SECRET`
-- `HIGGSFIELD_MODEL_ID`
-- `HIGGSFIELD_MODEL_LABEL`
-- `HIGGSFIELD_EXECUTION_ENABLED`
-- `LOG_LEVEL`
+- Wan 2.5
+- Wan 2.6
+- Sora 2
+- Kling 3.0
 
-## Ejemplo base
+## Configuración de modelo
+
+Ejemplo:
 
 ```env
-PORT=3010
-APP_ENV=development
-
-ACTIVE_VIDEO_PROVIDER=higgsfield
-
-HIGGSFIELD_API_KEY=TU_API_KEY
-HIGGSFIELD_API_SECRET=TU_API_SECRET
-
 HIGGSFIELD_MODEL_ID=wan-2.5
 HIGGSFIELD_MODEL_LABEL=WAN 2.5
-
 HIGGSFIELD_EXECUTION_ENABLED=false
-
-LOG_LEVEL=INFO

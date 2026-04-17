@@ -35,6 +35,7 @@ class HiggsfieldService:
             "requestId": None,
             "debug": {
                 "modelId": settings.higgsfield_model_id or None,
+                "modelLabel": settings.model_display_name,
                 "executionEnabled": settings.higgsfield_execution_enabled,
             },
         }
@@ -110,6 +111,18 @@ class HiggsfieldService:
 
         uploaded_url = self._upload_asset_real(temp_input_path)
         arguments = self._build_submit_arguments(payload, uploaded_url)
+
+        task_store.update_task(
+            task_id,
+            {
+                "debug": {
+                    "modelId": settings.higgsfield_model_id or None,
+                    "modelLabel": settings.model_display_name,
+                    "executionEnabled": settings.higgsfield_execution_enabled,
+                    "submitArgumentsPreview": arguments,
+                }
+            },
+        )
 
         request_controller = self._submit_job_real(arguments)
         request_id = self._extract_request_id(request_controller)
@@ -205,11 +218,66 @@ class HiggsfieldService:
         return str(result)
 
     def _build_submit_arguments(self, payload: GenerateVideoRequest, uploaded_url: str) -> Dict[str, Any]:
-        # Ajustar estos nombres cuando el cliente confirme el model_id y schema exacto.
-        return {
+        model_id = (settings.higgsfield_model_id or "").strip().lower()
+
+        common = {
             "prompt": payload.prompt,
-            "image": uploaded_url,
             "duration": payload.durationSeconds,
+        }
+
+        if model_id.startswith("wan"):
+            return self._build_wan_arguments(common, payload, uploaded_url)
+
+        if model_id.startswith("sora"):
+            return self._build_sora_arguments(common, payload, uploaded_url)
+
+        if model_id.startswith("kling"):
+            return self._build_kling_arguments(common, payload, uploaded_url)
+
+        return self._build_default_arguments(common, payload, uploaded_url)
+
+    def _build_wan_arguments(
+        self,
+        common: Dict[str, Any],
+        payload: GenerateVideoRequest,
+        uploaded_url: str,
+    ) -> Dict[str, Any]:
+        return {
+            **common,
+            "image": uploaded_url,
+        }
+
+    def _build_sora_arguments(
+        self,
+        common: Dict[str, Any],
+        payload: GenerateVideoRequest,
+        uploaded_url: str,
+    ) -> Dict[str, Any]:
+        return {
+            **common,
+            "image": uploaded_url,
+        }
+
+    def _build_kling_arguments(
+        self,
+        common: Dict[str, Any],
+        payload: GenerateVideoRequest,
+        uploaded_url: str,
+    ) -> Dict[str, Any]:
+        return {
+            **common,
+            "image": uploaded_url,
+        }
+
+    def _build_default_arguments(
+        self,
+        common: Dict[str, Any],
+        payload: GenerateVideoRequest,
+        uploaded_url: str,
+    ) -> Dict[str, Any]:
+        return {
+            **common,
+            "image": uploaded_url,
         }
 
     def _submit_job_real(self, arguments: Dict[str, Any]) -> Any:
@@ -285,7 +353,7 @@ class HiggsfieldService:
             "status": status_obj.__class__.__name__.lower(),
         }
 
-        for attr in ("message", "detail", "error", "request_id", "id"):
+        for attr in ("status", "message", "detail", "error", "request_id", "id"):
             value = getattr(status_obj, attr, None)
             if value is not None:
                 data[attr] = value
