@@ -27,6 +27,16 @@ class Settings:
             default=False,
         )
 
+        self.higgsfield_test_mode: bool = _to_bool(
+            os.getenv("HIGGSFIELD_TEST_MODE", "true"),
+            default=True,
+        )
+
+        self.higgsfield_allowed_job_id: str = os.getenv("HIGGSFIELD_ALLOWED_JOB_ID", "").strip()
+        self.higgsfield_max_duration_seconds: int = int(
+            os.getenv("HIGGSFIELD_MAX_DURATION_SECONDS", "4")
+        )
+
         self.log_level: str = os.getenv("LOG_LEVEL", "INFO").strip().upper()
 
     @property

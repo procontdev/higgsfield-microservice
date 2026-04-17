@@ -37,6 +37,9 @@ class HiggsfieldService:
                 "modelId": settings.higgsfield_model_id or None,
                 "modelLabel": settings.model_display_name,
                 "executionEnabled": settings.higgsfield_execution_enabled,
+                "testMode": settings.higgsfield_test_mode,
+                "allowedJobId": settings.higgsfield_allowed_job_id or None,
+                "maxDurationSeconds": settings.higgsfield_max_duration_seconds,
             },
         }
 
@@ -45,6 +48,8 @@ class HiggsfieldService:
             raise ValueError(
                 f"ACTIVE_VIDEO_PROVIDER actual es '{settings.active_video_provider}', no 'higgsfield'."
             )
+
+        self._validate_controlled_test_rules(payload)
 
         task = self._build_initial_task(payload)
         task_store.create_task(task)
@@ -91,6 +96,26 @@ class HiggsfieldService:
 
         return task_store.get_task(task["id"])
 
+    def _validate_controlled_test_rules(self, payload: GenerateVideoRequest) -> None:
+        if not settings.higgsfield_test_mode:
+            return
+
+        if not settings.higgsfield_allowed_job_id:
+            raise ValueError(
+                "HIGGSFIELD_TEST_MODE=true pero HIGGSFIELD_ALLOWED_JOB_ID no está configurado."
+            )
+
+        if payload.jobId != settings.higgsfield_allowed_job_id:
+            raise ValueError(
+                f"Modo prueba controlada activo. Solo se permite jobId='{settings.higgsfield_allowed_job_id}'."
+            )
+
+        if payload.durationSeconds > settings.higgsfield_max_duration_seconds:
+            raise ValueError(
+                "durationSeconds excede el máximo permitido para prueba controlada: "
+                f"{settings.higgsfield_max_duration_seconds}."
+            )
+
     def _process_task_safe(self, task_id: str, payload: GenerateVideoRequest) -> None:
         try:
             self._process_task(task_id, payload)
@@ -112,13 +137,14 @@ class HiggsfieldService:
         uploaded_url = self._upload_asset_real(temp_input_path)
         arguments = self._build_submit_arguments(payload, uploaded_url)
 
+        current_task = task_store.get_task(task_id) or {}
+        current_debug = current_task.get("debug", {})
+
         task_store.update_task(
             task_id,
             {
                 "debug": {
-                    "modelId": settings.higgsfield_model_id or None,
-                    "modelLabel": settings.model_display_name,
-                    "executionEnabled": settings.higgsfield_execution_enabled,
+                    **current_debug,
                     "submitArgumentsPreview": arguments,
                 }
             },
