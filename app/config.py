@@ -18,7 +18,10 @@ class Settings:
 
         self.higgsfield_api_key: str = os.getenv("HIGGSFIELD_API_KEY", "").strip()
         self.higgsfield_api_secret: str = os.getenv("HIGGSFIELD_API_SECRET", "").strip()
+
         self.higgsfield_model_id: str = os.getenv("HIGGSFIELD_MODEL_ID", "").strip()
+        self.higgsfield_model_label: str = os.getenv("HIGGSFIELD_MODEL_LABEL", "").strip()
+
         self.higgsfield_execution_enabled: bool = _to_bool(
             os.getenv("HIGGSFIELD_EXECUTION_ENABLED", "false"),
             default=False,
@@ -39,6 +42,14 @@ class Settings:
     @property
     def credentials_configured(self) -> bool:
         return bool(self.higgsfield_api_key and self.higgsfield_api_secret)
+
+    @property
+    def model_display_name(self) -> str:
+        if self.higgsfield_model_label:
+            return self.higgsfield_model_label
+        if self.higgsfield_model_id:
+            return self.higgsfield_model_id
+        return "not-configured"
 
 
 settings = Settings()

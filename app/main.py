@@ -5,7 +5,7 @@ from app.routes.video import router as video_router
 
 app = FastAPI(
     title="Higgsfield Microservice",
-    version="0.2.0",
+    version="0.2.1",
     description="Microservicio Python para integración de generación de video con Higgsfield",
 )
 
@@ -19,6 +19,8 @@ def health():
         "activeProvider": settings.active_video_provider,
         "executionEnabled": settings.higgsfield_execution_enabled,
         "modelConfigured": settings.model_configured,
+        "modelId": settings.higgsfield_model_id or None,
+        "modelLabel": settings.model_display_name,
         "credentialsConfigured": settings.credentials_configured,
     }
 
