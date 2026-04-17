@@ -12,15 +12,42 @@ Mantener el mismo contrato consumido por n8n para:
 
 ## Estado actual
 
-Este repositorio ya incluye:
+El servicio ya soporta:
 
-- bootstrap del microservicio en FastAPI
-- configuración por variables de entorno
-- endpoint `/health`
-- endpoint `POST /video/generate-video`
-- endpoint `GET /video/tasks/{id}`
-- bandera de seguridad `HIGGSFIELD_EXECUTION_ENABLED=false`
-- estructura preparada para integrar el SDK oficial de Higgsfield sin activar ejecución real todavía
+- `/health`
+- `POST /video/generate-video`
+- `GET /video/tasks/{id}`
+- validación segura con `HIGGSFIELD_EXECUTION_ENABLED=false`
+- flujo real preparado con:
+  - `upload_file(...)`
+  - `submit(...)`
+  - `status(request_id=...)`
+  - `result(request_id=...)`
+
+## Importante
+
+La documentación oficial del SDK Python de Higgsfield indica que:
+- `upload_file(...)` sube un archivo y devuelve una URL,
+- `submit(...)` crea una solicitud asíncrona,
+- `status(request_id=...)` permite consultar el estado,
+- `result(request_id=...)` obtiene el resultado final. :contentReference[oaicite:1]{index=1}
+
+Aun así, el schema exacto de `arguments` depende del `model_id` concreto que se vaya a usar. Por eso, el código actual deja este bloque preparado pero puede requerir ajuste fino cuando el cliente confirme el modelo exacto. :contentReference[oaicite:2]{index=2}
+
+## Variables de entorno
+
+```env
+PORT=3010
+APP_ENV=development
+
+ACTIVE_VIDEO_PROVIDER=higgsfield
+
+HIGGSFIELD_API_KEY=TU_API_KEY
+HIGGSFIELD_API_SECRET=TU_API_SECRET
+HIGGSFIELD_MODEL_ID=
+HIGGSFIELD_EXECUTION_ENABLED=false
+
+LOG_LEVEL=INFO
 
 ## Stack
 

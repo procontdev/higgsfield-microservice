@@ -106,22 +106,57 @@ class HiggsfieldService:
         task_store.update_task(task_id, {"status": "running"})
 
         image_bytes = self._decode_base64_image(payload.imageBase64)
-
         temp_input_path = self._write_temp_input_file(task_id, payload.fileName, image_bytes)
 
-        # Etapa preparada:
-        # 1) upload del asset
-        # 2) submit del request
-        # 3) polling de estado
-        #
-        # Aún no activamos el submit real al modelo hasta confirmar
-        # el model_id exacto y el shape de arguments.
-        uploaded_asset = self._prepare_upload_stub(temp_input_path)
-        request_payload = self._build_submit_arguments_stub(payload, uploaded_asset)
+        uploaded_url = self._upload_asset_real(temp_input_path)
+        arguments = self._build_submit_arguments(payload, uploaded_url)
 
-        raise RuntimeError(
-            "SDK preparado. Falta implementar submit real y polling final una vez confirmado "
-            "HIGGSFIELD_MODEL_ID y argumentos exactos del modelo."
+        request_controller = self._submit_job_real(arguments)
+        request_id = self._extract_request_id(request_controller)
+
+        task_store.update_task(
+            task_id,
+            {
+                "requestId": request_id,
+                "status": "running",
+            },
+        )
+
+        final_status = self._poll_job_real(request_id=request_id)
+
+        normalized_status = self._normalize_provider_status(final_status)
+        if normalized_status == "failed":
+            task_store.update_task(
+                task_id,
+                {
+                    "status": "failed",
+                    "error": self._extract_error_message(final_status),
+                },
+            )
+            return
+
+        result = self._get_result_real(request_id=request_id)
+        result_url = self._extract_result_url(result)
+
+        if not result_url:
+            task_store.update_task(
+                task_id,
+                {
+                    "status": "failed",
+                    "error": "No se pudo extraer resultUrl desde la respuesta final del proveedor.",
+                },
+            )
+            return
+
+        task_store.update_task(
+            task_id,
+            {
+                "status": "succeeded",
+                "resultUrl": result_url,
+                "videoFileName": self._build_video_file_name(payload.fileName),
+                "videoMimeType": "video/mp4",
+                "error": None,
+            },
         )
 
     def _decode_base64_image(self, image_base64: str) -> bytes:
@@ -145,60 +180,66 @@ class HiggsfieldService:
 
         return temp_input_path
 
-    def _prepare_upload_stub(self, file_path: str) -> Dict[str, Any]:
-        return {
-            "localPath": file_path,
-            "uploadedUrl": None,
-            "uploadedAssetId": None,
-        }
-
-    def _build_submit_arguments_stub(
-        self,
-        payload: GenerateVideoRequest,
-        uploaded_asset: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        return {
-            "prompt": payload.prompt,
-            "durationSeconds": payload.durationSeconds,
-            "inputImage": uploaded_asset.get("uploadedUrl"),
-            "fileName": payload.fileName,
-            "mimeType": payload.mimeType,
-        }
-
     def _build_hf_env(self) -> None:
         if settings.hf_key:
             os.environ["HF_KEY"] = settings.hf_key
-        elif settings.higgsfield_api_key and settings.higgsfield_api_secret:
+            return
+
+        if settings.higgsfield_api_key and settings.higgsfield_api_secret:
             os.environ["HF_API_KEY"] = settings.higgsfield_api_key
             os.environ["HF_API_SECRET"] = settings.higgsfield_api_secret
-        else:
-            raise RuntimeError("No hay credenciales válidas de Higgsfield configuradas.")
+            return
 
-    def _upload_asset_real(self, file_path: str) -> Dict[str, Any]:
+        raise RuntimeError("No hay credenciales válidas de Higgsfield configuradas.")
+
+    def _upload_asset_real(self, file_path: str) -> str:
         if higgsfield_client is None:
             raise RuntimeError("higgsfield-client no está instalado en el entorno.")
 
         self._build_hf_env()
 
         result = higgsfield_client.upload_file(file_path)
-        return result
+        if not result:
+            raise RuntimeError("upload_file no devolvió una URL válida.")
 
-    def _submit_job_real(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
+        return str(result)
+
+    def _build_submit_arguments(self, payload: GenerateVideoRequest, uploaded_url: str) -> Dict[str, Any]:
+        # Ajustar estos nombres cuando el cliente confirme el model_id y schema exacto.
+        return {
+            "prompt": payload.prompt,
+            "image": uploaded_url,
+            "duration": payload.durationSeconds,
+        }
+
+    def _submit_job_real(self, arguments: Dict[str, Any]) -> Any:
         if higgsfield_client is None:
             raise RuntimeError("higgsfield-client no está instalado en el entorno.")
 
         self._build_hf_env()
 
-        result = higgsfield_client.submit(
+        return higgsfield_client.submit(
             settings.higgsfield_model_id,
             arguments=arguments,
         )
-        return result
+
+    def _extract_request_id(self, request_controller: Any) -> str:
+        for attr in ("request_id", "id"):
+            value = getattr(request_controller, attr, None)
+            if value:
+                return str(value)
+
+        if isinstance(request_controller, dict):
+            for key in ("request_id", "id"):
+                if request_controller.get(key):
+                    return str(request_controller[key])
+
+        raise RuntimeError("No se pudo extraer request_id desde la respuesta de submit().")
 
     def _poll_job_real(
         self,
         request_id: str,
-        timeout_seconds: int = 180,
+        timeout_seconds: int = 300,
         poll_interval_seconds: int = 5,
     ) -> Dict[str, Any]:
         started_at = time.time()
@@ -216,9 +257,50 @@ class HiggsfieldService:
             time.sleep(poll_interval_seconds)
 
     def _get_request_status_real(self, request_id: str) -> Dict[str, Any]:
-        raise RuntimeError(
-            "Pendiente implementar consulta de estado real del request en Higgsfield."
-        )
+        if higgsfield_client is None:
+            raise RuntimeError("higgsfield-client no está instalado en el entorno.")
+
+        self._build_hf_env()
+
+        result = higgsfield_client.status(request_id=request_id)
+        if isinstance(result, dict):
+            return result
+
+        return self._status_object_to_dict(result)
+
+    def _get_result_real(self, request_id: str) -> Dict[str, Any]:
+        if higgsfield_client is None:
+            raise RuntimeError("higgsfield-client no está instalado en el entorno.")
+
+        self._build_hf_env()
+
+        result = higgsfield_client.result(request_id=request_id)
+        if isinstance(result, dict):
+            return result
+
+        return self._result_object_to_dict(result)
+
+    def _status_object_to_dict(self, status_obj: Any) -> Dict[str, Any]:
+        data = {
+            "status": status_obj.__class__.__name__.lower(),
+        }
+
+        for attr in ("message", "detail", "error", "request_id", "id"):
+            value = getattr(status_obj, attr, None)
+            if value is not None:
+                data[attr] = value
+
+        return data
+
+    def _result_object_to_dict(self, result_obj: Any) -> Dict[str, Any]:
+        if isinstance(result_obj, dict):
+            return result_obj
+
+        data: Dict[str, Any] = {}
+        if hasattr(result_obj, "__dict__"):
+            data.update(result_obj.__dict__)
+
+        return data
 
     def _normalize_provider_status(self, provider_response: Dict[str, Any]) -> str:
         raw_status = str(provider_response.get("status", "")).strip().lower()
@@ -228,6 +310,7 @@ class HiggsfieldService:
             "pending": "queued",
             "running": "running",
             "processing": "running",
+            "inprogress": "running",
             "in_progress": "running",
             "completed": "succeeded",
             "success": "succeeded",
@@ -236,9 +319,55 @@ class HiggsfieldService:
             "error": "failed",
             "cancelled": "failed",
             "canceled": "failed",
+            "nsfw": "failed",
         }
 
         return mapping.get(raw_status, "running")
+
+    def _extract_error_message(self, provider_response: Dict[str, Any]) -> str:
+        for key in ("error", "message", "detail"):
+            value = provider_response.get(key)
+            if value:
+                return str(value)
+        return "La generación falló en Higgsfield."
+
+    def _extract_result_url(self, result: Dict[str, Any]) -> Optional[str]:
+        candidate_paths = [
+            ("video", "url"),
+            ("videos", 0, "url"),
+            ("output", "url"),
+            ("outputs", 0, "url"),
+            ("result", "url"),
+            ("url",),
+        ]
+
+        for path in candidate_paths:
+            value = self._dig(result, *path)
+            if value:
+                return str(value)
+
+        return None
+
+    def _dig(self, data: Any, *path: Any) -> Any:
+        current = data
+        for key in path:
+            if isinstance(key, int):
+                if not isinstance(current, list) or key >= len(current):
+                    return None
+                current = current[key]
+            else:
+                if not isinstance(current, dict):
+                    return None
+                current = current.get(key)
+                if current is None:
+                    return None
+        return current
+
+    def _build_video_file_name(self, source_file_name: str) -> str:
+        base_name, _sep, _ext = source_file_name.rpartition(".")
+        if not base_name:
+            base_name = source_file_name
+        return f"{base_name}.mp4"
 
     def get_task(self, task_id: str) -> Optional[Dict[str, Any]]:
         return task_store.get_task(task_id)
