@@ -246,64 +246,24 @@ class HiggsfieldService:
     def _build_submit_arguments(self, payload: GenerateVideoRequest, uploaded_url: str) -> Dict[str, Any]:
         model_id = (settings.higgsfield_model_id or "").strip().lower()
 
-        common = {
+        documented_image_to_video_models = {
+            "higgsfield-ai/dop/preview",
+            "higgsfield-ai/dop/standard",
+            "bytedance/seedance/v1/pro/image-to-video",
+            "kling-video/v2.1/pro/image-to-video",
+        }
+
+        if model_id in documented_image_to_video_models:
+            return {
+                "image_url": uploaded_url,
+                "prompt": payload.prompt,
+                "duration": payload.durationSeconds,
+            }
+
+        return {
+            "image_url": uploaded_url,
             "prompt": payload.prompt,
             "duration": payload.durationSeconds,
-        }
-
-        if model_id.startswith("wan"):
-            return self._build_wan_arguments(common, payload, uploaded_url)
-
-        if model_id.startswith("sora"):
-            return self._build_sora_arguments(common, payload, uploaded_url)
-
-        if model_id.startswith("kling"):
-            return self._build_kling_arguments(common, payload, uploaded_url)
-
-        return self._build_default_arguments(common, payload, uploaded_url)
-
-    def _build_wan_arguments(
-        self,
-        common: Dict[str, Any],
-        payload: GenerateVideoRequest,
-        uploaded_url: str,
-    ) -> Dict[str, Any]:
-        return {
-            **common,
-            "image": uploaded_url,
-        }
-
-    def _build_sora_arguments(
-        self,
-        common: Dict[str, Any],
-        payload: GenerateVideoRequest,
-        uploaded_url: str,
-    ) -> Dict[str, Any]:
-        return {
-            **common,
-            "image": uploaded_url,
-        }
-
-    def _build_kling_arguments(
-        self,
-        common: Dict[str, Any],
-        payload: GenerateVideoRequest,
-        uploaded_url: str,
-    ) -> Dict[str, Any]:
-        return {
-            **common,
-            "image": uploaded_url,
-        }
-
-    def _build_default_arguments(
-        self,
-        common: Dict[str, Any],
-        payload: GenerateVideoRequest,
-        uploaded_url: str,
-    ) -> Dict[str, Any]:
-        return {
-            **common,
-            "image": uploaded_url,
         }
 
     def _submit_job_real(self, arguments: Dict[str, Any]) -> Any:
