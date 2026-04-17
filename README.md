@@ -1,25 +1,34 @@
 # higgsfield-microservice
 
-Microservicio en Python/FastAPI para integrar Higgsfield como proveedor de generación de video dentro del proyecto general **Edicion de Fotos y Video con IA**.
+Microservicio en Python/FastAPI para integrar **Higgsfield** como proveedor de generación de video dentro del proyecto general **Edicion de Fotos y Video con IA**.
 
 ## Objetivo
 
-Mantener el contrato actual usado por n8n para:
+Mantener el mismo contrato consumido por n8n para:
+
 - solicitar generación de video
-- consultar estado de tareas
+- consultar el estado de tareas
 - normalizar estados del proveedor
 
-Actualmente el microservicio está preparado para:
-- levantar localmente
-- responder `/health`
-- registrar tareas vía `POST /video/generate-video`
-- fallar de forma controlada si falta `HIGGSFIELD_MODEL_ID`
+## Estado actual
+
+Este repositorio ya incluye:
+
+- bootstrap del microservicio en FastAPI
+- configuración por variables de entorno
+- endpoint `/health`
+- endpoint `POST /video/generate-video`
+- endpoint `GET /video/tasks/{id}`
+- bandera de seguridad `HIGGSFIELD_EXECUTION_ENABLED=false`
+- estructura preparada para integrar el SDK oficial de Higgsfield sin activar ejecución real todavía
 
 ## Stack
 
 - Python 3.13
 - FastAPI
 - Uvicorn
+- python-dotenv
+- pydantic
 - higgsfield-client
 
 ## Estructura
@@ -37,3 +46,4 @@ app/
 .env.example
 requirements.txt
 Dockerfile
+README.md

@@ -32,5 +32,13 @@ class Settings:
             return f"{self.higgsfield_api_key}:{self.higgsfield_api_secret}"
         return ""
 
+    @property
+    def model_configured(self) -> bool:
+        return bool(self.higgsfield_model_id)
+
+    @property
+    def credentials_configured(self) -> bool:
+        return bool(self.higgsfield_api_key and self.higgsfield_api_secret)
+
 
 settings = Settings()
