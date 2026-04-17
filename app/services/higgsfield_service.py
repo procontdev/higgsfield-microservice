@@ -38,6 +38,19 @@ class HiggsfieldService:
         task = self._build_initial_task(payload)
         task_store.create_task(task)
 
+        if not settings.higgsfield_execution_enabled:
+            task_store.update_task(
+                task["id"],
+                {
+                    "status": "failed",
+                    "error": (
+                        "HIGGSFIELD_EXECUTION_ENABLED=false. "
+                        "La ejecución real está deshabilitada para evitar consumo accidental de créditos."
+                    ),
+                },
+            )
+            return task_store.get_task(task["id"])
+
         if not settings.higgsfield_model_id:
             task_store.update_task(
                 task["id"],
@@ -72,7 +85,6 @@ class HiggsfieldService:
     def _process_task(self, task_id: str, payload: GenerateVideoRequest) -> None:
         task_store.update_task(task_id, {"status": "running"})
 
-        # Validación mínima del base64
         try:
             image_bytes = base64.b64decode(payload.imageBase64, validate=True)
         except Exception:
@@ -81,7 +93,6 @@ class HiggsfieldService:
         if not image_bytes:
             raise ValueError("imageBase64 está vacío después de decodificar.")
 
-        # En esta primera etapa guardamos un archivo temporal para tener el flujo listo.
         temp_dir = os.path.join(os.getcwd(), "tmp")
         os.makedirs(temp_dir, exist_ok=True)
 
@@ -89,22 +100,8 @@ class HiggsfieldService:
         with open(temp_input_path, "wb") as f:
             f.write(image_bytes)
 
-        # Integración real con Higgsfield:
-        # Se deja preparada pero contenida para evitar gastar créditos hasta que
-        # confirmemos el model_id correcto y los argumentos exactos del modelo.
-        #
-        # El SDK oficial documenta submit/subscribe/upload; en la etapa final
-        # aquí haremos:
-        #
-        #   1) exportar HF_KEY al proceso
-        #   2) upload_file(...) o upload(...)
-        #   3) submit(model_id, arguments={...})
-        #   4) poll/get hasta resultado final
-        #
-        # Por ahora devolvemos failed-controlado para no consumir créditos.
         raise RuntimeError(
-            "Core listo, pero la ejecución real está bloqueada intencionalmente "
-            "hasta confirmar HIGGSFIELD_MODEL_ID y argumentos exactos del modelo."
+            "Modo ejecución real habilitado, pero la llamada efectiva al SDK aún no fue implementada."
         )
 
     def get_task(self, task_id: str) -> Dict[str, Any] | None:

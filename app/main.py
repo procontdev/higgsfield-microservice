@@ -17,6 +17,7 @@ def health():
         "service": "higgsfield-microservice",
         "env": settings.app_env,
         "activeProvider": settings.active_video_provider,
+        "executionEnabled": settings.higgsfield_execution_enabled,
     }
 
 
